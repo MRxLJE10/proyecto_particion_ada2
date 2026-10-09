@@ -1,0 +1,166 @@
+ANÁLISIS DE LA SOLUCIÓN POR PROGRAMACIÓN DINÁMICA
+Problema de la Partición - ADA2 2026-2 
+=====================================================================
+
+1. DESCRIPCIÓN DEL PROBLEMA
+---------------------------------------------------------------------
+Entrada: lista nums = [a1, ..., an] de enteros no negativos.
+Salida: dos subconjuntos S1 y S2 que reparten TODOS los elementos y
+        minimizan |suma(S1) - suma(S2)|.
+
+Ejemplo: [1, 5, 11, 5] -> S1 = {11}, S2 = {1, 5, 5}; diferencia = 0.
+
+Observación clave: sea S la suma total. Si S1 suma s, entonces S2 suma
+S - s y la diferencia es |S - 2s|. Minimizar la diferencia equivale a
+encontrar la suma alcanzable s <= S/2 más grande posible:
+
+        diferencia mínima = S - 2 * s_max
+
+Así el problema se reduce a SUBSET SUM: "¿qué sumas se pueden formar
+con subconjuntos de nums?"
+
+
+2. MODELO MATEMÁTICO
+---------------------------------------------------------------------
+Se define un arreglo booleano de tamaño S/2 + 1:
+
+    dp[s] = VERDADERO si algún subconjunto de los elementos ya
+            procesados suma exactamente s,  FALSO en otro caso.
+
+Caso base:   dp[0] = VERDADERO   (el conjunto vacío suma 0)
+             dp[s] = FALSO para s > 0
+
+Respuesta:   s_max = max { s <= S/2 : dp[s] = VERDADERO }
+             diferencia mínima = S - 2 * s_max
+
+
+3. RECURRENCIA Y POR QUÉ FUNCIONA
+---------------------------------------------------------------------
+Al procesar el elemento x = nums[i], para cada suma s:
+
+    dp_nuevo[s] = dp_viejo[s]  OR  dp_viejo[s - x]     (si s >= x)
+
+Razonamiento (decisión incluir / no incluir x):
+  - Si NO incluimos x, s es alcanzable solo si ya lo era antes: dp_viejo[s].
+  - Si SÍ incluimos x, el resto del subconjunto debe sumar s - x usando
+    los elementos anteriores: dp_viejo[s - x].
+  - s es alcanzable si ocurre cualquiera de las dos opciones (OR).
+
+Detalle de implementación: con un solo arreglo de 1 dimensión se recorre
+s de MAYOR a MENOR. Así, cuando se consulta dp[s - x] todavía tiene el
+valor "viejo" (de antes de usar x), y x nunca se usa dos veces. Si se
+recorriera de menor a mayor, el elemento se podría reutilizar, lo cual sería incorrecto.
+
+Por qué es correcta (inducción): después de procesar los primeros i
+elementos, dp[s] es VERDADERO si y solo si existe un subconjunto de
+esos i elementos con suma s. Es cierto para i = 0 (solo s = 0), y la
+recurrencia conserva la propiedad al agregar el elemento i+1, porque
+cualquier subconjunto lo contiene o no lo contiene (no hay otro caso).
+
+Subestructura óptima y subproblemas repetidos: la pregunta "¿se puede
+formar s con los primeros i elementos?" se reutiliza muchas veces, por
+eso se guarda en la tabla en lugar de recalcularla.
+
+Reconstrucción de los subconjuntos: se guarda padre[s] = índice del
+elemento que hizo alcanzable s POR PRIMERA VEZ. Desde s_max se retrocede:
+    s -> s - nums[padre[s]]   hasta llegar a 0.
+Los elementos visitados forman S1; el resto forma S2. No se repite
+ningún elemento porque la suma restante (s - x) ya era alcanzable
+ANTES de procesar el elemento padre[s].
+
+
+4. EJEMPLO PASO A PASO: nums = [1, 5, 11, 5]
+---------------------------------------------------------------------
+S = 22, S/2 = 11. Sumas alcanzables (dp verdadero) tras cada elemento:
+
+    inicio : {0}
+    x = 1  : {0, 1}
+    x = 5  : {0, 1, 5, 6}
+    x = 11 : {0, 1, 5, 6, 11}
+    x = 5  : {0, 1, 5, 6, 10, 11}
+
+s_max = 11  ->  diferencia = 22 - 2*11 = 0. Reconstrucción: S1 = {11}.
+
+
+5. PSEUDOCÓDIGO COMENTADO
+---------------------------------------------------------------------
+particion_dinamica(nums):
+    S    <- suma(nums)                   // suma total
+    mitad <- S div 2                     // solo hasta S/2
+    dp[0..mitad]     <- FALSO
+    padre[0..mitad] <- -1
+    dp[0] <- VERDADERO                   // caso base
+
+    para i desde 0 hasta n-1:            // cada elemento
+        x <- nums[i]
+        para s desde mitad hasta x, bajando de 1 en 1:   // MAYOR a MENOR
+            si dp[s] = FALSO y dp[s - x] = VERDADERO:
+                dp[s]     <- VERDADERO   // s alcanzable usando x
+                padre[s] <- i           // recordar quién lo logró
+
+    mejor <- mitad
+    mientras dp[mejor] = FALSO:          // la suma alcanzable más cercana a S/2
+        mejor <- mejor - 1
+
+    S1 <- vacío ; s <- mejor
+    mientras s > 0:                      // reconstrucción
+        i <- padre[s]
+        agregar nums[i] a S1
+        s <- s - nums[i]
+
+    S2 <- elementos de nums que no están en S1
+    retornar (S - 2*mejor, S1, S2)
+
+
+6. ANÁLISIS DE COMPLEJIDAD
+---------------------------------------------------------------------
+Tiempo:   Dos ciclos anidados: n elementos x (S/2) sumas
+          -> O(n * S/2) = O(n * S).
+          Reconstrucción: O(n). Búsqueda de s_max: O(S/2).
+Espacio:  Arreglos dp y parent de tamaño S/2 + 1
+          -> O(S/2) = O(S).
+
+Es PSEUDOPOLINOMIAL: el tiempo depende del VALOR numérico de S, no solo
+de n. Medido en tamaño de entrada (número de bits), S puede ser
+exponencial: S ~ 2^k si los números tienen k bits. Por eso no
+contradice que el problema sea NP-completo: para valores grandes la
+tabla se vuelve inviable, aunque para valores pequeños es muy rápida.
+
+
+7. RELACIÓN CON NP 
+---------------------------------------------------------------------
+- Pertenece a NP: dado un certificado (una partición), se verifica en
+  O(n) sumando ambos lados y comparando.
+- La versión de decisión "¿existe partición con diferencia 0?" es
+  NP-completa.
+- El DP no es un algoritmo polinomial real: es pseudopolinomial.
+
+
+8. LIMITACIONES / SUPUESTOS
+---------------------------------------------------------------------
+- Se asumen enteros NO negativos (índices del arreglo).
+- Si la suma es muy grande (por ejemplo 10^9), la tabla no cabe en
+  memoria.
+- Con varias particiones óptimas posibles, se retorna una de ellas.
+
+
+9. CASOS DE PRUEBA (test_dp.py)
+---------------------------------------------------------------------
+ #  Entrada            Dif. mínima   Partición
+ 1  [1, 5, 11, 5]          0         {11} | {1, 5, 5}
+ 2  [1, 2, 5]              2         {1, 2} | {5}
+ 3  [1, 2, 3]              0         {1, 2} | {3}
+ 4  [1, 5, 10, 6]          0         {1, 10} | {5, 6}
+ 5  [1, 2, ..., 50]        1         suma 1275 (impar) -> mínimo posible 1
+
+Casos borde adicionales (también en test_dp.py):
+    []                -> dif. 0   (lista vacía)
+    [7]               -> dif. 7   (un solo elemento)
+    [4, 4]            -> dif. 0
+    [0, 0, 3, 0]      -> dif. 3   (ceros)
+    [5, 5, 5]         -> dif. 5   (iguales, cantidad impar)
+    [100, 1, 2, 3]    -> dif. 94  (un elemento domina)
+    [3, 3, 3, 3, 3, 3]-> dif. 0   (repetidos)
+
+Todos verifican: (a) diferencia esperada, (b) que S1 + S2 sea exactamente
+la entrada, (c) que |suma(S1) - suma(S2)| coincida con la diferencia.
