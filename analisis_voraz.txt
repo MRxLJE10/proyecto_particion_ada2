@@ -1,0 +1,122 @@
+ANALISIS DEL ENFOQUE VORAZ - PROBLEMA DE PARTICION 
+
+
+1. PROBLEMA
+Dado un multiconjunto de enteros positivos A = {a1, ..., an}, dividirlo en dos
+subconjuntos S1 y S2 (S1 U S2 = A, disjuntos) que minimicen la diferencia
+
+    D = | sum(S1) - sum(S2) |
+
+2. CRITERIO VORAZ
+  1. Ordenar los numeros de mayor a menor.
+  2. Recorrerlos en ese orden; cada numero se asigna al subconjunto cuya suma
+     actual sea MENOR (en empate, a S1).
+
+Decision local: en cada paso solo se mira el estado actual (las dos sumas
+parciales) y nunca se reconsidera una asignacion ya hecha.
+
+3. POR QUE PARECE RAZONABLE
+
+ - Ordenar de mayor a menor coloca primero los elementos que mas pueden
+   desbalancear; los pequenos quedan para el final y "afinan" el ajuste.
+ - Asignar siempre al lado mas liviano intenta que las sumas se mantengan
+   parejas en todo momento.
+ - Propiedad que SI se cumple: la diferencia final nunca supera al mayor
+   elemento. Si d es la diferencia actual y se agrega x al lado menor, la nueva
+   diferencia es |d - x| <= max(d, x), asi que por induccion D <= max(A).
+ - Es una heuristica conocida (LPT de Graham): para 2 subconjuntos garantiza
+   que la suma mayor es a lo sumo 7/6 de la suma mayor optima. Es buena
+   aproximacion, pero NO es el optimo.
+
+4. DEMOSTRACION DE QUE NO ES OPTIMO (CONTRAEJEMPLOS)
+
+NOTA: [1,5,11,5] NO es contraejemplo. El voraz clasico da 0 en ese caso:
+    ordenado: 11,5,5,1
+    11 -> S1 (11,0) | 5 -> S2 (11,5) | 5 -> S2 (11,10) | 1 -> S2 (11,11)
+    Resultado: D = 0, igual que el DP.
+
+Contraejemplo 1: [3,3,2,2,2]   (suma total 12)
+    ordenado: 3,3,2,2,2
+    3 -> S1 (3,0)
+    3 -> S2 (3,3)     empate: ya van parejos
+    2 -> S1 (5,3)
+    2 -> S2 (5,5)
+    2 -> S1 (7,5)
+    Voraz: S1={3,2,2}=7, S2={3,2}=5  ->  D = 2
+    Optimo (DP): S1={3,3}=6, S2={2,2,2}=6  ->  D = 0
+    Fallo: poner el segundo 3 en el lado vacio parece natural, pero deja
+    imposible llegar a 6+6 con los tres 2 restantes. Habria que poner los dos
+    3 juntos, y el voraz nunca lo considera.
+
+Contraejemplo 2: [4,5,6,7,8]   (suma total 30)
+    ordenado: 8,7,6,5,4
+    8 -> S1 (8,0)
+    7 -> S2 (8,7)
+    6 -> S2 (8,13)
+    5 -> S1 (13,13)
+    4 -> S1 (17,13)
+    Voraz: S1={8,5,4}=17, S2={7,6}=13  ->  D = 4
+    Optimo (DP): S1={7,8}=15, S2={4,5,6}=15  ->  D = 0
+
+Tambien falla en la lista aleatoria de 55 elementos (semilla 2026 en
+test_greedy.py): el voraz da D = 3 y el optimo es D = 1.
+
+IMPORTANTE - resultados en los 5 casos comunes (los mismos de test_dp.py):
+    [1,5,11,5]  voraz 0 | optimo 0
+    [1,2,5]     voraz 2 | optimo 2
+    [1,2,3]     voraz 0 | optimo 0
+    [1,5,10,6]  voraz 0 | optimo 0
+    [1..50]     voraz 1 | optimo 1
+El voraz coincide con el optimo en TODOS los casos comunes. Su falla aparece
+en los casos adicionales de arriba, por eso se agregaron al test.
+
+Evidencia estadistica (2000 listas aleatorias, n entre 1 y 12, valores 0..30,
+comparando contra particion_dinamica): el voraz fue peor que el optimo en 603
+casos (aprox. 30%), con una brecha maxima de 14. Nunca fue mejor que el DP.
+
+5. POR QUE NO GARANTIZA OPTIMALIDAD
+-----------------------------------
+El problema de particion no tiene la propiedad de "eleccion voraz" (la mejor
+decision local no siempre pertenece a una solucion global optima) y la
+asignacion de un elemento afecta de forma no local a todas las combinaciones
+posibles del resto. Una vez asignado un elemento, el voraz no puede deshacerlo.
+Particion es NP-completo (con numeros grandes), asi que un algoritmo voraz
+polinomial que fuera siempre exacto implicaria P = NP; no hay razon para
+esperarlo y los contraejemplos de arriba lo confirman en casos pequenos.
+
+6. COMPLEJIDAD
+--------------
+ - Ordenamiento: O(n log n)
+ - Recorrido con una comparacion por elemento: O(n)
+ - Tiempo total: O(n log n)
+ - Espacio: O(n) (copia ordenada y los dos subconjuntos)
+ - No depende del valor de los numeros, solo de la cantidad n.
+
+Medicion (promedio de 200 corridas, numeros aleatorios 1..100):
+    n=10 -> 0.00068 ms | n=20 -> 0.00134 ms | n=30 -> 0.00173 ms
+    n=40 -> 0.00260 ms | n=50 -> 0.00291 ms
+(Los tiempos exactos dependen de la maquina; lo importante es el crecimiento
+casi lineal.)
+
+7. COMPARACION CONCEPTUAL CON PROGRAMACION DINAMICA
+---------------------------------------------------
+                   Voraz                    Programacion dinamica
+ Tiempo            O(n log n)               O(n * suma/2)  (pseudopolinomial)
+ Espacio           O(n)                     O(suma/2)
+ Optimalidad       No garantizada           Garantizada
+ Decisiones        Una sola, irrevocable    Explora todas las sumas alcanzables
+ Depende de        Solo de n                De n y del tamano de los valores
+ Cuando usarlo     Aproximacion rapida,     Se necesita el optimo exacto y la
+                   suma muy grande          suma total es moderada
+
+El voraz cambia exactitud por velocidad; el DP paga con tiempo y memoria
+proporcionales a la suma para no perder ninguna combinacion.
+
+8. DESCUBRIMIENTO DEL PROCESO 
+-------------------------------------------------------------
+ - El caso [1,5,11,5] estaba planteado como contraejemplo, pero al ejecutar el
+   voraz se verifico que da 0. Se reemplazo por [3,3,2,2,2] y [4,5,6,7,8],
+   comprobados contra una referencia exacta independiente.
+ - Decision de diseno: se desempata hacia S1 (suma1 <= suma2). Otro criterio
+   de desempate puede cambiar los subconjuntos, pero no los contraejemplos
+   aqui documentados.
